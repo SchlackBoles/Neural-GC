@@ -16,36 +16,45 @@ def make_var_stationary(beta, radius=0.97):
     else:
         return beta
 
-
-def simulate_var(p, T, lag, sparsity=0.2, beta_value=1.0, sd=0.1, seed=0):
+def simulate_var(p, T, lag, sparsity=0.2, beta_range=(-0.3, 0.3), sd=0.1, seed=0, zeroing_prob=0.5):
     if seed is not None:
         np.random.seed(seed)
 
-    # Set up coefficients and Granger causality ground truth.
+    # Set up Granger causality ground truth.
     GC = np.eye(p, dtype=int)
-    beta = np.eye(p) * beta_value
 
-    num_nonzero = int(p * sparsity) - 1
+    # Generate the beta matrix for the VAR process (with lags)
+    beta = np.zeros((p, p * lag))
+
     for i in range(p):
-        choice = np.random.choice(p - 1, size=num_nonzero, replace=False)
-        choice[choice >= i] += 1
-        beta[i, choice] = beta_value
-        GC[i, choice] = 1
+        # Ensure self-dependency for all lags
+        for j in range(lag):
+            beta[i, i + j * p] = np.random.uniform(beta_range[0], beta_range[1])  # Self-interaction
+        
+        # Select other random variables that influence variable i
+        num_nonzero = int(p * sparsity)  # This determines how many other variables influence i
+        if num_nonzero > 0:
+            choice = np.random.choice([x for x in range(p) if x != i], size=num_nonzero, replace=False)
+            for j in range(lag):
+                # Randomly decide whether to zero out the coefficient
+                if np.random.rand() > zeroing_prob:  # Keep with probability (1 - zeroing_prob)
+                    beta[i, choice + j * p] = np.random.uniform(beta_range[0], beta_range[1], size=num_nonzero)
+                    GC[i, choice] = 1  # Update Granger causality matrix
 
-    beta = np.hstack([beta for _ in range(lag)])
     beta = make_var_stationary(beta)
 
-    # Generate data.
+
+
+    # Generate data
     burn_in = 100
     errors = np.random.normal(scale=sd, size=(p, T + burn_in))
     X = np.zeros((p, T + burn_in))
     X[:, :lag] = errors[:, :lag]
     for t in range(lag, T + burn_in):
         X[:, t] = np.dot(beta, X[:, (t-lag):t].flatten(order='F'))
-        X[:, t] += + errors[:, t-1]
+        X[:, t] += errors[:, t]
 
     return X.T[burn_in:], beta, GC
-
 
 def lorenz(x, t, F):
     '''Partial derivatives for Lorenz-96 ODE.'''
