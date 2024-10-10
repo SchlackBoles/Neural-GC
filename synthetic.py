@@ -86,3 +86,85 @@ def simulate_lorenz_96(p, T, F=10.0, delta_t=0.1, sd=0.1, burn_in=1000,
         GC[i, (i - 2) % p] = 1
 
     return X[burn_in:], GC
+
+def apply_shock(X, shock_magnitude, shock_time, shocked_vars):
+    """
+    Apply a shock to the system at a specific time step.
+
+    X: np.array, shape (p, T)
+        The data matrix containing the time series.
+    shock_magnitude: float
+        The magnitude of the shock to apply.
+    shock_time: int
+        The time step at which to apply the shock.
+    shocked_vars: list of int
+        The indices of the variables that are shocked.
+    """
+    X_shocked = X.copy()
+    
+    for var in shocked_vars:
+        X_shocked[var, shock_time] += shock_magnitude
+    
+    return X_shocked
+
+def propagate_shock(X, beta, errors, t_shock, lag):
+    """
+    Propagates a shock in a given series from time step t_shock onwards.
+    
+    Parameters:
+    X : np.ndarray
+        The original time series data (p, T) where p is the number of variables and T is the number of time steps.
+    beta : np.ndarray
+        The coefficient matrix for the VAR process.
+    errors : np.ndarray
+        The noise/error matrix added to the series.
+    t_shock : int
+        The time step at which the shock occurred.
+    lag : int
+        The number of lags in the VAR process.
+    
+    Returns:
+    np.ndarray
+        The series after shock propagation.
+    """
+    p, T = X.shape  
+
+
+    for t in range(t_shock + 1, T):
+        # Compute the next time step based on the previous lagged values and VAR process
+        X[:, t] = np.dot(beta, X[:, (t-lag):t].flatten(order='F'))
+        # Add the corresponding error term for this time step
+        X[:, t] += errors[:, t]
+    
+    return X
+
+
+x_propagated = propagate_shock(x_shocked, beta, errors, shock_time, lag)
+
+def calculate_irfs(A1, A2, steps):
+    """
+    Calculate the Impulse Response Functions for a VAR(2) model as a 3D numpy array.
+
+    Parameters:
+    A1 : np.ndarray
+        The autoregressive coefficient matrix for lag 1.
+    A2 : np.ndarray
+        The autoregressive coefficient matrix for lag 2.
+    steps : int
+        The number of time steps to compute IRFs for.
+
+    Returns:
+    np.ndarray
+        A 3D array of IRF matrices from Phi_0 to Phi_steps.
+    """
+    k = A1.shape[0]  # Assuming A1 and A2 are square matrices of the same size
+    irfs = [np.eye(k), A1]  # Initialize with Phi_0 as identity and Phi_1 as A1
+
+    # Start computing from Phi_2
+    for i in range(2, steps):
+        # Phi_i = Phi_{i-1} * A1 + Phi_{i-2} * A2
+        Phi_i = np.dot(irfs[i-1], A1) + np.dot(irfs[i-2], A2)
+        irfs.append(Phi_i)
+
+    # Convert the list of matrices to a 3D numpy array
+    return np.array(irfs)
