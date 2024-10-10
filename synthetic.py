@@ -139,7 +139,6 @@ def propagate_shock(X, beta, errors, t_shock, lag):
     return X
 
 
-x_propagated = propagate_shock(x_shocked, beta, errors, shock_time, lag)
 
 def calculate_irfs(A1, A2, steps):
     """
