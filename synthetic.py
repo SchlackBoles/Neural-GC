@@ -30,7 +30,7 @@ def simulate_var(p, T, lag, sparsity=0.2, beta_range=(-0.8, 0.8), sd=0.1, seed=0
         # Ensure self-dependency for all lags
         for j in range(lag):
             beta[i, i + j * p] = np.random.uniform(beta_range[0], beta_range[1])  # Self-interaction
-        
+
         # Select other random variables that influence variable i
         if sparsity < 1.0:  # Only apply sparsity if it's not full interaction
             num_nonzero = int(p * sparsity)  # This determines how many other variables influence i
@@ -38,7 +38,7 @@ def simulate_var(p, T, lag, sparsity=0.2, beta_range=(-0.8, 0.8), sd=0.1, seed=0
                 choice = np.random.choice([x for x in range(p) if x != i], size=num_nonzero, replace=False)
                 for j in range(lag):
                     # Randomly decide whether to zero out the coefficient
-                    if np.random.rand() > zeroing_prob: 
+                    if np.random.rand() > zeroing_prob:
                         # Keep with probability (1 - zeroing_prob)
                         beta[i, choice + j * p] = np.random.uniform(beta_range[0], beta_range[1], size=num_nonzero)
                         GC[i, choice] = 1  # Update Granger causality matrix
@@ -56,16 +56,13 @@ def simulate_var(p, T, lag, sparsity=0.2, beta_range=(-0.8, 0.8), sd=0.1, seed=0
     burn_in = 100
     errors = np.random.normal(scale=sd, size=(p, T + burn_in))
     X = np.zeros((p, T + burn_in))
-    
+
     X[:, :lag] = errors[:, :lag]
-    print(X[:,:3])
     for t in range(lag, T + burn_in):
-        print(X[:, (t-lag):t])
-        print(X[:, (t-lag):t].flatten(order='F'))
         X[:, t] = np.dot(beta, X[:, (t-lag):t].flatten(order='F'))
-        print(X[:, :3])
+
         X[:, t] += errors[:, t]
-        sys.exit()
+
 
 
     return X.T[burn_in:], X[:, burn_in:], beta, GC, errors[:, burn_in:]
